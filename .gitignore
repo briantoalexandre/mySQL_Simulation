@@ -1,0 +1,5 @@
+.vscode
+cjson
+data/*
+!data/*_default.json
+*.exe
