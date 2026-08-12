@@ -136,6 +136,40 @@ char *CJSON_join(cJSON *array, const size_t arrSize , const char *sep) {
     return NULL;
 }
 
+char *slice(const char *src, int start, int length) {
+    int src_length = strlen(src);
+
+    char *dst = malloc(length + 1);
+    memcpy(dst, &src[start], length);
+    dst[length] = '\0';
+    
+    return dst;
+}
+
+char **split(char *sentence, char *sep, int maxsplit) {
+    int sent_length = strlen(sentence);
+    int sep_length = strlen(sep);
+    if (!sep) {
+        sep = " ";
+    }
+    if (maxsplit < 0) {
+    }
+
+    int count;
+    size_t i = 0;
+    while (i+sep_length < sent_length) {
+        if (strcmp(slice(sentence, i, sep_length), sep) == 0) {
+            i += sep_length;
+
+        } else {
+            i++;
+        }
+    }
+
+
+
+}
+
 void chooser() {}
 
 void addLogin() {}
@@ -262,8 +296,8 @@ int main() {
     struct DictDB database;
     init_DictDB(&database);
 
-    userPromptOS(&Windows);
-
+    // userPromptOS(&Windows);
+    
     return 0;
 }
 
