@@ -48,6 +48,7 @@ cJSON *read_fileTocJSON(const char *filename) {
 // My Lambdas
 
 #define arrlen(x) (sizeof(x)/sizeof(x[0]))
+#define test (printf("test\n"))
 
 // My functions
 
@@ -146,28 +147,74 @@ char *slice(const char *src, int start, int length) {
     return dst;
 }
 
-char **split(char *sentence, char *sep, int maxsplit) {
-    int sent_length = strlen(sentence);
-    int sep_length = strlen(sep);
-    if (!sep) {
-        sep = " ";
-    }
-    if (maxsplit < 0) {
-    }
-
-    int count;
-    size_t i = 0;
-    while (i+sep_length < sent_length) {
-        if (strcmp(slice(sentence, i, sep_length), sep) == 0) {
-            i += sep_length;
-
-        } else {
-            i++;
+int count_occ(char *str, char *occ) {
+    int str_l = strlen(str);
+    if (str_l) {
+        int occ_l = strlen(occ);
+        if (!occ_l) {
+            occ = " ";
+            occ_l = 1;
         }
+
+        int count = 0;
+        int i = 0;
+        while (i < str_l - occ_l + 1) {
+            if (!strcmp(slice(str, i, occ_l), occ)) {
+                count++;
+                i += occ_l;
+            } else {
+            i++;
+            }
+        }
+        return count;
     }
+    return 0;
+}
 
+char **split(char *str, char* sep, int *size) {
+    char *copy = malloc(strlen(str)+1);
+    strcpy(copy, str);
+    *size = 0;
+    if (copy) {
 
+        if (!sep) {
+            sep = " ";
+        }
 
+        int count = count_occ(copy, sep);
+        
+        if (count) {
+            *size = count+1;
+            char *token = strtok(copy, sep);
+            char **array = malloc((*size)*sizeof *array);
+            int i = 0;
+            while (token != NULL) {
+                // printf("token : %s\n", token);
+                array[i] = malloc(strlen(token));
+                strcpy(array[i], token);
+                token = strtok(NULL, sep);
+                i++;                
+            }   
+            
+            return array;
+        }
+        *size = 1;
+        char **array = malloc(2*sizeof *array);
+        array[0] = malloc(strlen(str));
+        strcpy(array[0], str);
+        return array;
+    } 
+    *size = 0;
+    char **array = malloc(2*sizeof *array);
+    return NULL;
+}
+
+int arrlen2(char **arr) {
+    int i;
+    for (i = 0; arr[i] != NULL; i++) {
+    }
+    return i;
+    
 }
 
 void chooser() {}
@@ -195,6 +242,7 @@ struct DictDB {
 
     char *fileName;
 };
+
 
 
 // DictDB methods
@@ -252,18 +300,31 @@ void init_DictOS(struct DictOS *p) {
 }
 
 void userPromptOS(struct DictOS *p) {
-    char userInput[100];
+    char userInput[500];
+    char **userInputPARSED;
     bool running = true;
-    char *sep = "\n  ";
+    char *sepH = "\n  ";
+    int arrsize;
     while (running) {
         printf(":");
         fgets(userInput, sizeof(userInput), stdin);
         trtolower(userInput);
 
         if (strcmp(userInput, "") == 0 || strcmp(userInput, "help") == 0) {
-            printf("Help Menu / commands [%s%s\n]\n", sep, CJSON_join(p->commands, cJSON_GetArraySize(p->commands), sep));
+            printf("Help Menu / commands [%s%s\n]\n", sepH, CJSON_join(p->commands, cJSON_GetArraySize(p->commands), sepH));
+        } else {
+            userInputPARSED = split(userInput, " ", &arrsize);
+            if (!strcmp(userInputPARSED[0], "get-localuser")) {
+                printf("good ! \n");
+            } else {
+                printf("please type \"help\"\n");
+            }
         }
     }
+}
+
+char **getlocaluser(struct DictOS *p) {
+
 }
 
 char *getPswd(struct DictOS *p) {
@@ -288,7 +349,6 @@ char *getPswd(struct DictOS *p) {
 
 int main() {
 
-    //char *t[] = {"hello", "hi"};
 
     struct DictOS Windows;
     init_DictOS(&Windows);
@@ -296,9 +356,22 @@ int main() {
     struct DictDB database;
     init_DictDB(&database);
 
-    // userPromptOS(&Windows);
-    
+    userPromptOS(&Windows);
     return 0;
 }
+
+
+// userPromptOS(&Windows);
+
+// char **array = malloc(2*sizeof *array);
+
+// char *word = "hello";
+
+// array[0] = malloc(strlen(word)+1);
+
+// strcpy(array[0], word);
+
+// printf("v : %i", array[1]);
+
 
 //gcc .\dbCommands.c .\cjson\cJSON.c -o .\dbCommands
