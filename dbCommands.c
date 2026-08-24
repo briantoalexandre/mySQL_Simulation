@@ -299,6 +299,33 @@ void init_DictOS(struct DictOS *p) {
     }
 }
 
+void getlocaluser(struct DictOS *p) {
+    cJSON *dict = NULL;
+    printf("Name\n----\n");
+    cJSON_ArrayForEach(dict, p->users) {
+        printf("%s \n", cJSON_GetObjectItem(dict, "name")->valuestring);
+    }
+    printf("\n");
+}
+
+char *getPswd(struct DictOS *p) {
+    char userInput[50];
+    printf("username : ");
+    fgets(userInput, sizeof(userInput), stdin);
+    trim(userInput);
+    if ("size : %i",cJSON_GetArraySize(p->users)) {
+        cJSON *dict = NULL;        
+        cJSON_ArrayForEach(dict, p->users) {
+            char *user = cJSON_GetObjectItem(dict, "name")->valuestring;
+            if (strcmp(userInput, user) == 0) {
+                char *password = cJSON_GetObjectItem(dict, "password")->valuestring;
+                return password;
+            }
+        }   
+    }
+    return NULL;
+}
+
 void userPromptOS(struct DictOS *p) {
     char userInput[500];
     char **userInputPARSED;
@@ -312,10 +339,12 @@ void userPromptOS(struct DictOS *p) {
 
         if (strcmp(userInput, "") == 0 || strcmp(userInput, "help") == 0) {
             printf("Help Menu / commands [%s%s\n]\n", sepH, CJSON_join(p->commands, cJSON_GetArraySize(p->commands), sepH));
+        } else if (!strcmp(userInput, "exit")){
+            running = false;
         } else {
             userInputPARSED = split(userInput, " ", &arrsize);
-            if (!strcmp(userInputPARSED[0], "get-localuser")) {
-                printf("good ! \n");
+            if (!strcmp(userInputPARSED[0], "get-localuser") || !strcmp(userInputPARSED[0], "glu")) {
+                getlocaluser(p);
             } else {
                 printf("please type \"help\"\n");
             }
@@ -323,29 +352,7 @@ void userPromptOS(struct DictOS *p) {
     }
 }
 
-char **getlocaluser(struct DictOS *p) {
 
-}
-
-char *getPswd(struct DictOS *p) {
-    char userInput[50];
-    printf("username : ");
-    fgets(userInput, sizeof(userInput), stdin);
-    trim(userInput);
-    if ("size : %i",cJSON_GetArraySize(p->users)) {
-        cJSON *dict = NULL;
-        char *user;
-        char *password;
-        cJSON_ArrayForEach(dict, p->users) {
-            user = cJSON_GetObjectItem(dict, "name")->valuestring;
-            if (strcmp(userInput, user) == 0) {
-                password = cJSON_GetObjectItem(dict, "password")->valuestring;
-                return password;
-            }
-        }   
-    }
-    return NULL;
-}
 
 int main() {
 
@@ -357,6 +364,7 @@ int main() {
     init_DictDB(&database);
 
     userPromptOS(&Windows);
+
     return 0;
 }
 
