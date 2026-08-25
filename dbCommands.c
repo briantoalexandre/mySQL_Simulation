@@ -184,16 +184,16 @@ char **split(char *str, char* sep, int *size) {
         int count = count_occ(copy, sep);
         
         if (count) {
-            *size = count+1;
+            //*size = count+1;
             char *token = strtok(copy, sep);
-            char **array = malloc((*size)*sizeof *array);
+            char **array = malloc((count+1)*sizeof *array);
             int i = 0;
             while (token != NULL) {
                 // printf("token : %s\n", token);
                 array[i] = malloc(strlen(token));
                 strcpy(array[i], token);
                 token = strtok(NULL, sep);
-                i++;                
+                *size = ++i;                
             }   
             
             return array;
@@ -299,6 +299,41 @@ void init_DictOS(struct DictOS *p) {
     }
 }
 
+cJSON save_usersOS(struct DictOS *p) {
+    char *file_str = cJSON_Print(p->data);
+    
+
+    FILE *fp = fopen(p->fileName, "w");
+    if (fp) {
+        fputs(file_str, fp);
+        fclose(fp);
+    }
+
+    free(file_str);
+}
+
+bool userInOS(struct DictOS *p, char *name) {
+    cJSON *dict = NULL;
+    cJSON_ArrayForEach(dict, p->users) {
+        if (!strcmp(cJSON_GetObjectItem(dict, "name")->valuestring, name)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void addUserOS(struct DictOS *p, char *name, char *password) {
+    
+    cJSON *user = cJSON_CreateObject();
+    cJSON_AddStringToObject(user, "name", name);
+    cJSON_AddStringToObject(user, "password", password);
+
+    cJSON_AddItemToArray(p->users, user);
+
+    save_usersOS(p);
+    printf("user : %s added\n", name);
+}
+
 void getlocaluser(struct DictOS *p) {
     cJSON *dict = NULL;
     printf("Name\n----\n");
@@ -306,6 +341,28 @@ void getlocaluser(struct DictOS *p) {
         printf("%s \n", cJSON_GetObjectItem(dict, "name")->valuestring);
     }
     printf("\n");
+}
+
+void newlocaluser(struct DictOS *p, char *input, char **inputArr, int inputArrSize) {
+    // int arrsize = cJSON_GetArraySize(p->users);
+    if (inputArrSize == 5) {
+        if (!strcmp(inputArr[1], "-name") || !strcmp(inputArr[3], "-password")) {
+            int inputArrStringSize;
+            char **inputArrStrings = split(input, "\"", &inputArrStringSize);
+            if (inputArrStringSize == 4) {
+                char *name = inputArrStrings[1];
+                if (!userInOS(p, name)) {
+                    char *password = inputArrStrings[3];
+                    addUserOS(p, name, password);
+                } else {
+                    printf("user '%s' already exist\n", name);
+                }
+                return;
+            }
+        }
+    }
+    printf("Invalid synthax\n");
+
 }
 
 char *getPswd(struct DictOS *p) {
@@ -317,7 +374,7 @@ char *getPswd(struct DictOS *p) {
         cJSON *dict = NULL;        
         cJSON_ArrayForEach(dict, p->users) {
             char *user = cJSON_GetObjectItem(dict, "name")->valuestring;
-            if (strcmp(userInput, user) == 0) {
+            if (!strcmp(userInput, user)) {
                 char *password = cJSON_GetObjectItem(dict, "password")->valuestring;
                 return password;
             }
@@ -345,6 +402,10 @@ void userPromptOS(struct DictOS *p) {
             userInputPARSED = split(userInput, " ", &arrsize);
             if (!strcmp(userInputPARSED[0], "get-localuser") || !strcmp(userInputPARSED[0], "glu")) {
                 getlocaluser(p);
+            }
+            if (!strcmp(userInputPARSED[0], "new-localuser") || !strcmp(userInputPARSED[0], "nlu")) {
+                newlocaluser(p, userInput, userInputPARSED, arrsize);
+
             } else {
                 printf("please type \"help\"\n");
             }
@@ -352,7 +413,9 @@ void userPromptOS(struct DictOS *p) {
     }
 }
 
-
+void a() {
+    printf("this is a callback\n");
+}
 
 int main() {
 
