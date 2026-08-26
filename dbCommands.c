@@ -313,6 +313,7 @@ cJSON save_usersOS(struct DictOS *p) {
 }
 
 bool userInOS(struct DictOS *p, char *name) {
+    // return true if name found p->users
     cJSON *dict = NULL;
     cJSON_ArrayForEach(dict, p->users) {
         if (!strcmp(cJSON_GetObjectItem(dict, "name")->valuestring, name)) {
@@ -331,7 +332,25 @@ void addUserOS(struct DictOS *p, char *name, char *password) {
     cJSON_AddItemToArray(p->users, user);
 
     save_usersOS(p);
-    printf("user : %s added\n", name);
+    printf("user %s added\n", name);
+}
+
+void removeUserOS(struct DictOS *p, char *name) {
+    
+    int count = cJSON_GetArraySize(p->users);
+
+    for (int i = 0; i < count; i++) {
+        cJSON *user = cJSON_GetArrayItem(p->users, i);
+
+        if (!strcmp(cJSON_GetObjectItem(user, "name")->valuestring, name)) {
+
+            cJSON_DeleteItemFromArray(p->users, i);
+            break;
+        }
+    }
+
+    save_usersOS(p);
+    printf("user %s removed\n", name);
 }
 
 void getlocaluser(struct DictOS *p) {
@@ -344,7 +363,6 @@ void getlocaluser(struct DictOS *p) {
 }
 
 void newlocaluser(struct DictOS *p, char *input, char **inputArr, int inputArrSize) {
-    // int arrsize = cJSON_GetArraySize(p->users);
     if (inputArrSize == 5) {
         if (!strcmp(inputArr[1], "-name") || !strcmp(inputArr[3], "-password")) {
             int inputArrStringSize;
@@ -364,6 +382,29 @@ void newlocaluser(struct DictOS *p, char *input, char **inputArr, int inputArrSi
     printf("Invalid synthax\n");
 
 }
+
+void removelocaluser(struct DictOS *p, char *input, char **inputArr, int inputArrSize) {
+    if (inputArrSize == 3) {
+        if (!strcmp(inputArr[1], "-name")) {
+            int inputArrStringSize;
+            char **inputArrStrings = split(input, "\"", &inputArrStringSize);
+            if (inputArrStringSize == 2) {
+                char *name = inputArrStrings[1];
+                if (!userInOS(p, name)) {
+                    printf("user '%s' does not exist\n", name);                    
+                } else {
+                    char *password = inputArrStrings[3];
+                    removeUserOS(p, name);
+                }
+                return;
+            }
+        }
+    }
+    printf("Invalid synthax\n");
+
+}
+
+
 
 char *getPswd(struct DictOS *p) {
     char userInput[50];
@@ -400,12 +441,15 @@ void userPromptOS(struct DictOS *p) {
             running = false;
         } else {
             userInputPARSED = split(userInput, " ", &arrsize);
+
             if (!strcmp(userInputPARSED[0], "get-localuser") || !strcmp(userInputPARSED[0], "glu")) {
                 getlocaluser(p);
             }
-            if (!strcmp(userInputPARSED[0], "new-localuser") || !strcmp(userInputPARSED[0], "nlu")) {
+            else if (!strcmp(userInputPARSED[0], "new-localuser") || !strcmp(userInputPARSED[0], "nlu")) {
                 newlocaluser(p, userInput, userInputPARSED, arrsize);
-
+            }
+            else if (!strcmp(userInputPARSED[0], "remove-localuser") || !strcmp(userInputPARSED[0], "rlu")) {
+                removelocaluser(p, userInput, userInputPARSED, arrsize);
             } else {
                 printf("please type \"help\"\n");
             }
@@ -430,19 +474,6 @@ int main() {
 
     return 0;
 }
-
-
-// userPromptOS(&Windows);
-
-// char **array = malloc(2*sizeof *array);
-
-// char *word = "hello";
-
-// array[0] = malloc(strlen(word)+1);
-
-// strcpy(array[0], word);
-
-// printf("v : %i", array[1]);
 
 
 //gcc .\dbCommands.c .\cjson\cJSON.c -o .\dbCommands
