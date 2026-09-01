@@ -3,9 +3,60 @@
 #include <string.h>
 #include <stdbool.h>
 #include <ctype.h>
+#include <math.h>
 #include "cjson\cJSON.h" // git clone https://github.com/DaveGamble/cJSON
 
-// read file function thx chatGPT
+#ifdef _WIN32
+    #include <windows.h>
+#else
+    #include <unistd.h>
+    #include <limits.h>
+#endif
+
+// classes
+
+struct DictOS {
+    cJSON *data;
+    cJSON *users;
+    cJSON *commands;
+
+    char *fileName;
+
+    char *currentUser;
+    int privilege; 
+};
+
+struct DictDB {
+    cJSON *data;
+    int uLength; //username max length
+    int pLength; //password max length
+
+    char *fileName;
+};
+
+#define arrlen(x) (sizeof(x)/sizeof(x[0]))
+#define test (printf("test\n"))
+#define IntToStringSizeof(n) (int)((ceil(log10(n))+1)*sizeof(char))
+
+char *getHostName() {
+    static char hostname[256];
+    size_t size = sizeof(hostname);
+
+    #ifdef _WIN32
+        DWORD dsize = size;
+        if (!GetComputerNameA(hostname, &dsize)) {
+            return NULL;
+        }
+    #else
+        if (!gethostname(hostname, size)) {
+            return NULL;
+        }
+    #endif
+    hostname[sizeof(hostname) - 1] = '\0';
+    return (char *)hostname;
+
+}
+
 char *read_file(const char *filename) {
     FILE *fp = fopen(filename, "rb");
     if (!fp) {
@@ -45,12 +96,30 @@ cJSON *read_fileTocJSON(const char *filename) {
     return dataP;
 }
 
-// My Lambdas
+char *hash(const char *str) {
+    int size = strlen(str);
 
-#define arrlen(x) (sizeof(x)/sizeof(x[0]))
-#define test (printf("test\n"))
+    int power = 6761;
+    int modulo = 1e9+9;
+    long long hash_value = 0;
+    long long p_power = 1;
+    for (int i = 0; i < size; i++) {
+        hash_value = (hash_value + (str[i] - 'a' + 1) * p_power) % modulo;
+        p_power = (p_power * power) % modulo;
+    }
 
-// My functions
+    int hash_string_size = IntToStringSizeof(hash_value);
+    char *hash_string = malloc(sizeof(char) * hash_string_size);
+    sprintf(hash_string, "%d", hash_value);
+    return hash_string;
+
+    return hash_string;
+    
+}
+
+void noNewline(char *str) {
+    str[strcspn(str, "\n")] = '\0';
+}
 
 void trim(char *str) {
     int start = 0;
@@ -81,7 +150,7 @@ void trtolower(char *str) {
     all_tolower(str);
 }
 
-char *join(char **array, const size_t arrSize , const char *sep) {
+char *join(char **array, const size_t arrSize, const char *sep) {
     if (arrSize) {
         int total_length = 1;
         for (size_t i = 0; i < arrSize; i++) {
@@ -217,77 +286,10 @@ int arrlen2(char **arr) {
     
 }
 
-void chooser() {}
+/* ========================
+        DictOS Methods
+   ======================== */
 
-void addLogin() {}
-
-void removeLogin() {}
-
-void changeLogin() {}
-
-// classes
-
-struct DictOS {
-    cJSON *data;
-    cJSON *users;
-    cJSON *commands;
-
-    char *fileName;
-};
-
-struct DictDB {
-    cJSON *data;
-    int uLength; //username max length
-    int pLength; //password max length
-
-    char *fileName;
-};
-
-
-
-// DictDB methods
-
-// init
-void init_DictDB(struct DictDB *p) {
-
-    p->fileName = "data/db.json";
-    cJSON *datafile = read_fileTocJSON(p->fileName);
-    if (datafile) {
-        p->data = datafile;
-
-        int duL = 40; // default username max length value
-        int dpL = 40; // default password ..
-
-        cJSON *length = cJSON_GetObjectItem(p->data, "length");
-        if (length) {
-
-            cJSON *uL = cJSON_GetObjectItem(length, "username");
-            if (cJSON_IsNumber(uL)) {
-                p->uLength = uL->valueint;
-            }
-            else {
-                printf("default value used (username : %i)\n", duL);
-                p->uLength = duL;
-            }
-            
-            cJSON *pL = cJSON_GetObjectItem(length, "password");
-            if (cJSON_IsNumber(pL)) {
-                p->pLength = pL->valueint;
-            }
-            else{
-                printf("default value used (password : %i)\n", dpL);
-                p->pLength = duL;
-            }
-        }
-        else {
-            printf("length key missing in %s", p->fileName);
-        }
-    }
-}
-
-// DictOS methods
-
-// init
 void init_DictOS(struct DictOS *p) {
     p->fileName = "data/users.json";
     cJSON *datafile = read_fileTocJSON(p->fileName);
@@ -295,6 +297,9 @@ void init_DictOS(struct DictOS *p) {
         p->data = datafile;
         p->users = cJSON_GetObjectItem(p->data, "users");
         p->commands = cJSON_GetObjectItem(p->data, "commands");
+
+        p->currentUser = NULL;
+
 
     }
 }
@@ -313,11 +318,25 @@ cJSON save_usersOS(struct DictOS *p) {
 }
 
 bool userInOS(struct DictOS *p, char *name) {
-    // return true if name found p->users
     cJSON *dict = NULL;
     cJSON_ArrayForEach(dict, p->users) {
         if (!strcmp(cJSON_GetObjectItem(dict, "name")->valuestring, name)) {
             return true;
+        }
+    }
+    return false;
+}
+
+bool verifyPassword(struct DictOS *p, char *username, char *password) {
+    cJSON *item = NULL;
+
+    cJSON_ArrayForEach(item, p->users) {
+        char *n = cJSON_GetObjectItem(item, "name")->valuestring;
+        char *p = cJSON_GetObjectItem(item, "password")->valuestring;
+        if (!strcmp(n, username)) {
+            if (!strcmp(p, password)) {
+                return true;
+            }
         }
     }
     return false;
@@ -404,39 +423,57 @@ void removelocaluser(struct DictOS *p, char *input, char **inputArr, int inputAr
 
 }
 
+void whoami(struct DictOS *p) {
+    char *machineName = getHostName() ?: "?";
+    char *user = p->currentUser ?: "?";
+    printf("%s/%s\n\n", machineName, user);
+}
 
-
-char *getPswd(struct DictOS *p) {
-    char userInput[50];
-    printf("username : ");
-    fgets(userInput, sizeof(userInput), stdin);
-    trim(userInput);
-    if ("size : %i",cJSON_GetArraySize(p->users)) {
-        cJSON *dict = NULL;        
-        cJSON_ArrayForEach(dict, p->users) {
-            char *user = cJSON_GetObjectItem(dict, "name")->valuestring;
-            if (!strcmp(userInput, user)) {
-                char *password = cJSON_GetObjectItem(dict, "password")->valuestring;
-                return password;
+void runas(struct DictOS *p, char *input, char **inputArr, int inputArrSize) {
+    int userStringLength = 6; // strlen("/user:") 
+    if (inputArrSize == 3) {
+        int userArgSize = strlen(inputArr[1]);
+        if (userArgSize > userStringLength) {
+            char *userArg = inputArr[1];
+            if (!strcmp(slice(userArg, 0, 6), "/user:") && count_occ(userArg, "\"") == 2) {
+                int size = 0;
+                char **userArr = split(userArg, "\"", &size);
+                if (size == 2 && userArr[1]) {
+                    char *user = userArr[1];
+                    if (userInOS) {
+                        char pswdInput[20];
+                        printf("type password of %s : ", user);
+                        fgets(pswdInput, sizeof(pswdInput), stdin);
+                        noNewline(pswdInput);
+                        if (verifyPassword(p, user, pswdInput)) {
+                            char *app = inputArr[2];
+                            if (!strcmp(app, "powershell") || !strcmp(app, "powershell.exe")) {
+                                p->currentUser = user;
+                                return;
+                            }
+                        }
+                    }
+                    printf("1326 : Incorrect username or password.\n");
+                    return;
+                }                 
             }
-        }   
+        }
     }
-    return NULL;
+    printf("Invalid Synthax\n");
 }
 
 void userPromptOS(struct DictOS *p) {
     char userInput[500];
     char **userInputPARSED;
     bool running = true;
-    char *sepH = "\n  ";
     int arrsize;
     while (running) {
-        printf(":");
+        printf("PS %s> ", p->currentUser ?: "?");
         fgets(userInput, sizeof(userInput), stdin);
         trtolower(userInput);
 
         if (strcmp(userInput, "") == 0 || strcmp(userInput, "help") == 0) {
-            printf("Help Menu / commands [%s%s\n]\n", sepH, CJSON_join(p->commands, cJSON_GetArraySize(p->commands), sepH));
+            printf("Help Menu / commands [%s%s\n]\n", "\n  ", CJSON_join(p->commands, cJSON_GetArraySize(p->commands), "\n  "));
         } else if (!strcmp(userInput, "exit")){
             running = false;
         } else {
@@ -450,6 +487,13 @@ void userPromptOS(struct DictOS *p) {
             }
             else if (!strcmp(userInputPARSED[0], "remove-localuser") || !strcmp(userInputPARSED[0], "rlu")) {
                 removelocaluser(p, userInput, userInputPARSED, arrsize);
+            }
+            else if (!strcmp(userInputPARSED[0], "whoami")) {
+                whoami(p);
+            }
+            else if (!strcmp(userInputPARSED[0], "runas")) {
+                runas(p, userInput, userInputPARSED, arrsize);
+
             } else {
                 printf("please type \"help\"\n");
             }
@@ -457,13 +501,49 @@ void userPromptOS(struct DictOS *p) {
     }
 }
 
-void a() {
-    printf("this is a callback\n");
+/* ========================
+        DictDB Methods
+   ======================== */
+
+void init_DictDB(struct DictDB *p) {
+
+    p->fileName = "data/db.json";
+    cJSON *datafile = read_fileTocJSON(p->fileName);
+    if (datafile) {
+        p->data = datafile;
+
+        int duL = 40; // default username max length value
+        int dpL = 40; // default password ..
+
+        cJSON *length = cJSON_GetObjectItem(p->data, "length");
+        if (length) {
+
+            cJSON *uL = cJSON_GetObjectItem(length, "username");
+            if (cJSON_IsNumber(uL)) {
+                p->uLength = uL->valueint;
+            }
+            else {
+                printf("default value used (username : %i)\n", duL);
+                p->uLength = duL;
+            }
+            
+            cJSON *pL = cJSON_GetObjectItem(length, "password");
+            if (cJSON_IsNumber(pL)) {
+                p->pLength = pL->valueint;
+            }
+            else{
+                printf("default value used (password : %i)\n", dpL);
+                p->pLength = duL;
+            }
+        }
+        else {
+            printf("length key missing in %s", p->fileName);
+        }
+    }
 }
 
 int main() {
-
-
+    
     struct DictOS Windows;
     init_DictOS(&Windows);
 

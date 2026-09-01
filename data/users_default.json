@@ -6,8 +6,10 @@
 		}
     ],
 	"commands":	[
-        "New-LocalUser -Name \"NAME\" -Password \"PASSWORD\" \\\\ Create user with password",
-        "Remove-LocalUser -Name \"NAME\" \\\\ remove user",
-        "Get-LocalUser \\\\ Lists all local user"
+        "New-LocalUser -Name \"NAME\" -Password \"PASSWORD\" \\\\ Create user with password", 
+		"Remove-LocalUser -Name \"NAME\" \\\\ remove user",
+		"Get-LocalUser \\\\ Lists all local user",
+		"runas /user:\"NAME\" powershell \\\\ switch to another user",
+		"whoami \\\\ print the current user" 
     ]
 }
