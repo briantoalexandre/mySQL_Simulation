@@ -5,6 +5,7 @@
 			"password":	"blank"
 		}
     ],
+	"last" : "",
 	"commands":	[
         "New-LocalUser -Name \"NAME\" -Password \"PASSWORD\" \\\\ Create user with password", 
 		"Remove-LocalUser -Name \"NAME\" \\\\ remove user",

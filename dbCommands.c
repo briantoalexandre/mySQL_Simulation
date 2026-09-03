@@ -24,6 +24,8 @@ struct DictOS {
 
     char *currentUser;
     int privilege; 
+
+
 };
 
 struct DictDB {
@@ -33,6 +35,11 @@ struct DictDB {
 
     char *fileName;
 };
+
+#define NAME_MAX_SIZE_DICTOS 20
+#define PASSWORD_MAX_SIZE_DICTOS 20
+#define NAME_MAX_SIZE_DICTDB 20
+#define PASSWORD_MAX_SIZE_DICDB 20
 
 #define arrlen(x) (sizeof(x)/sizeof(x[0]))
 #define test (printf("test\n"))
@@ -262,7 +269,7 @@ char **split(char *str, char* sep, int *size) {
                 array[i] = malloc(strlen(token));
                 strcpy(array[i], token);
                 token = strtok(NULL, sep);
-                *size = ++i;                
+                *size = ++i;
             }   
             
             return array;
@@ -304,7 +311,7 @@ void init_DictOS(struct DictOS *p) {
     }
 }
 
-cJSON save_usersOS(struct DictOS *p) {
+void save_usersOS(struct DictOS *p) {
     char *file_str = cJSON_Print(p->data);
     
 
@@ -327,6 +334,17 @@ bool userInOS(struct DictOS *p, char *name) {
     return false;
 }
 
+char *getLastUser(struct DictOS *p) {
+    return cJSON_GetObjectItem(p->data, "last")->valuestring;
+}
+
+char *getPasswordInputOfUser(char *user){
+    static char pswdInput[PASSWORD_MAX_SIZE_DICTOS];
+    printf("type password of %s : ", user);
+    fgets(pswdInput, sizeof(pswdInput), stdin);
+    noNewline(pswdInput);
+    return pswdInput;
+}
 bool verifyPassword(struct DictOS *p, char *username, char *password) {
     cJSON *item = NULL;
 
@@ -341,6 +359,12 @@ bool verifyPassword(struct DictOS *p, char *username, char *password) {
     }
     return false;
 }
+
+bool atLeastXUserInOS(struct DictOS *p, int x) {
+    return (cJSON_GetArraySize(p->users) ?: x-1) >= x;
+}
+
+
 
 void addUserOS(struct DictOS *p, char *name, char *password) {
     
@@ -372,6 +396,15 @@ void removeUserOS(struct DictOS *p, char *name) {
     printf("user %s removed\n", name);
 }
 
+void changeCurrentUser(struct DictOS *p, char *name) {
+    cJSON *old = cJSON_GetObjectItem(p->data, "last");
+        if (strcmp(old->valuestring, name)) {
+            cJSON_SetValuestring(old, name);
+            save_usersOS(p);
+        }
+    p->currentUser = name;
+}
+
 void getlocaluser(struct DictOS *p) {
     cJSON *dict = NULL;
     printf("Name\n----\n");
@@ -388,6 +421,7 @@ void newlocaluser(struct DictOS *p, char *input, char **inputArr, int inputArrSi
             char **inputArrStrings = split(input, "\"", &inputArrStringSize);
             if (inputArrStringSize == 4) {
                 char *name = inputArrStrings[1];
+                trim(name);
                 if (!userInOS(p, name)) {
                     char *password = inputArrStrings[3];
                     addUserOS(p, name, password);
@@ -411,6 +445,8 @@ void removelocaluser(struct DictOS *p, char *input, char **inputArr, int inputAr
                 char *name = inputArrStrings[1];
                 if (!userInOS(p, name)) {
                     printf("user '%s' does not exist\n", name);                    
+                } else if (!atLeastXUserInOS(p, 1)) {
+                    printf("There need to be at least one user\n");
                 } else {
                     char *password = inputArrStrings[3];
                     removeUserOS(p, name);
@@ -439,16 +475,13 @@ void runas(struct DictOS *p, char *input, char **inputArr, int inputArrSize) {
                 int size = 0;
                 char **userArr = split(userArg, "\"", &size);
                 if (size == 2 && userArr[1]) {
-                    char *user = userArr[1];
+                    char *username = userArr[1];
                     if (userInOS) {
-                        char pswdInput[20];
-                        printf("type password of %s : ", user);
-                        fgets(pswdInput, sizeof(pswdInput), stdin);
-                        noNewline(pswdInput);
-                        if (verifyPassword(p, user, pswdInput)) {
+                        char *password = getPasswordInputOfUser(username);
+                        if (verifyPassword(p, username, password)) {
                             char *app = inputArr[2];
                             if (!strcmp(app, "powershell") || !strcmp(app, "powershell.exe")) {
-                                p->currentUser = user;
+                                changeCurrentUser(p, username);
                                 return;
                             }
                         }
@@ -462,7 +495,48 @@ void runas(struct DictOS *p, char *input, char **inputArr, int inputArrSize) {
     printf("Invalid Synthax\n");
 }
 
+void procedureNoUser(struct DictOS *p) {
+    if (!atLeastXUserInOS(p, 1)) {
+        char name[NAME_MAX_SIZE_DICTOS];
+        char password[PASSWORD_MAX_SIZE_DICTOS];
+
+        printf("No users found, please create a new user.\n");
+        printf("name length max : %i\npassword length max : %i\n\n", NAME_MAX_SIZE_DICTOS, PASSWORD_MAX_SIZE_DICTOS);
+
+        printf("name : ");
+        fgets(name, sizeof(name), stdin);
+        noNewline(name);
+
+        printf("password : ");
+        fgets(password, sizeof(password), stdin);
+        noNewline(password);
+
+        printf("\n");
+        addUserOS(p, name, password);
+        procedureNoUser(p);
+    }
+}
+
+
+
+void procedureConnectAsLastUser(struct DictOS *p) {
+    char *name = getLastUser(p);
+    if (name && userInOS(p, name)) {
+        printf("Last user was %s\n", name);
+        char *password = getPasswordInputOfUser(name);
+        if (verifyPassword(p, name, password)) {
+            changeCurrentUser(p, name);
+            return;
+        } else {
+            printf("1326 : Incorrect username or password.\n");
+        }
+    }
+    
+}
+
 void userPromptOS(struct DictOS *p) {
+    procedureNoUser(p);
+    procedureConnectAsLastUser(p);
     char userInput[500];
     char **userInputPARSED;
     bool running = true;
@@ -541,6 +615,8 @@ void init_DictDB(struct DictDB *p) {
         }
     }
 }
+
+
 
 int main() {
     
